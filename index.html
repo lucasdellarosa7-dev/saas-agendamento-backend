@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendamento Online</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; box-sizing: border-box; }
+        h2 { text-align: center; color: #333; margin-top: 0; }
+        .etapa { display: none; }
+        .etapa.ativa { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
+        select, input[type="date"], input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        
+        .grid-horarios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+        .btn-horario { padding: 10px; border: 2px solid #007bff; background: white; color: #007bff; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s; text-align: center; }
+        .btn-horario:hover { background: #e6f0ff; }
+        .btn-horario.selecionado { background: #007bff; color: white; }
+        
+        button.btn-principal { background-color: #007bff; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; font-size: 16px; margin-top: 20px; transition: 0.2s; }
+        button.btn-principal:hover { background-color: #0056b3; }
+        button.btn-voltar { background-color: transparent; color: #666; border: none; padding: 10px; cursor: pointer; width: 100%; margin-top: 10px; text-decoration: underline; }
+        
+        .resumo-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff; margin-bottom: 20px; font-size: 14px; }
+        .termo-aceite { background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 12px; margin-bottom: 20px; border: 1px solid #ffeeba; }
+        
+        .pix-box { text-align: center; padding: 20px; border: 2px dashed #28a745; border-radius: 8px; margin-bottom: 20px; }
+        .codigo-pix { background: #eee; padding: 10px; word-break: break-all; font-family: monospace; font-size: 12px; border-radius: 4px; margin: 10px 0; }
+        .btn-copiar { background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        
+        /* Tela de Sucesso */
+        .comprovante { border: 1px solid #ddd; padding: 20px; border-radius: 10px; background: #fff; text-align: left; margin-bottom: 20px; }
+        .comprovante p { margin: 8px 0; font-size: 15px; border-bottom: 1px dashed #eee; padding-bottom: 8px; }
+        .btn-whatsapp { background-color: #25D366; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .btn-whatsapp:hover { background-color: #128C7E; }
+
+        /* Botão Flutuante WhatsApp */
+        .float-whatsapp { position: fixed; width: 60px; height: 60px; bottom: 20px; right: 20px; background-color: #25d366; color: #FFF; border-radius: 50px; text-align: center; font-size: 30px; box-shadow: 2px 2px 3px #999; z-index: 100; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2 id="nome-barbearia">Carregando...</h2>
+
+        <!-- ETAPA 1: Escolha do Serviço e Profissional -->
+        <div id="etapa-1" class="etapa ativa">
+            <div class="form-group">
+                <label>O que você deseja fazer?</label>
+                <select id="select-servico" onchange="atualizarProfissionais()">
+                    <option value="">Selecione um serviço...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Com quem?</label>
+                <select id="select-profissional">
+                    <option value="">Qualquer profissional disponível</option>
+                </select>
+            </div>
+            <button class="btn-principal" onclick="irParaEtapa2()">Próximo Passo ➔</button>
+        </div>
+
+        <!-- ETAPA 2: Escolha de Data e Hora -->
+        <div id="etapa-2" class="etapa">
+            <div class="form-group">
+                <label>Qual a melhor data?</label>
+                <input type="date" id="input-data" onchange="buscarHorarios()">
+            </div>
+            <div class="form-group">
+                <label>Horários Livres:</label>
+                <div id="grid-horarios" class="grid-horarios">
+                    <p style="grid-column: span 3; text-align: center; color: #888; font-size: 14px;">Escolha uma data primeiro.</p>
+                </div>
+            </div>
+            <button class="btn-principal" onclick="irParaEtapa3()">Próximo Passo ➔</button>
+            <button class="btn-voltar" onclick="voltarEtapa(1)">⬅ Voltar</button>
+        </div>
+
+        <!-- ETAPA 3: Dados do Cliente e Resumo -->
+        <div id="etapa-3" class="etapa">
+            <div class="resumo-box" id="box-resumo"></div>
+            
+            <div class="termo-aceite">
+                <strong>⚠️ Termo de Reserva (Sinal)</strong><br>
+                Para confirmar este horário, é necessário o pagamento de um sinal via Pix de <strong id="valor-sinal-texto"></strong>.<br><br>
+                <em>O valor será abatido do total no dia do serviço. Em caso de não comparecimento ou cancelamento com menos de 24h, o sinal não será devolvido.</em>
+            </div>
+
+            <div class="form-group">
+                <label>Seu Nome Completo:</label>
+                <input type="text" id="input-nome" placeholder="Digite seu nome">
+            </div>
+            <div class="form-group">
+                <label>Seu WhatsApp (Com DDD):</label>
+                <input type="text" id="input-telefone" placeholder="Ex: 11999999999" maxlength="15">
+            </div>
+
+            <button class="btn-principal" onclick="gerarPix()">Gerar Pix do Sinal ➔</button>
+            <button class="btn-voltar" onclick="voltarEtapa(2)">⬅ Voltar</button>
+        </div>
+
+        <!-- ETAPA 4: Pagamento Pix -->
+        <div id="etapa-4" class="etapa">
+            <h3 style="text-align: center; color: #28a745;">Quase lá!</h3>
+            <p style="text-align: center; font-size: 14px; color: #666;">Copie o código abaixo e pague no app do seu banco para garantir o horário.</p>
+            
+            <div class="pix-box">
+                <strong>Valor do Sinal: <span id="pix-valor"></span></strong>
+                <div class="codigo-pix" id="codigo-pix-texto">Carregando código...</div>
+                <button class="btn-copiar" onclick="copiarPix()">📋 Copiar Código Pix</button>
+            </div>
+
+            <button class="btn-principal" onclick="simularPagamento()" style="background-color: #28a745;">Simular Pagamento (Teste) ✅</button>
+        </div>
+
+        <!-- ETAPA 5: Sucesso e Comprovante -->
+        <div id="etapa-5" class="etapa" style="text-align: center;">
+            <div style="font-size: 50px; margin-bottom: 10px;">✅</div>
+            <h3 style="color: #28a745; margin-top: 0;">Horário Confirmado!</h3>
+            
+            <div class="comprovante" id="comprovante-box">
+                <!-- Preenchido via JS -->
+            </div>
+
+            <button class="btn-whatsapp" onclick="enviarComprovanteZap()">
+                📲 Enviar para a Barbearia
+            </button>
+            <p style="font-size: 12px; color: #666; margin-top: 15px;">Clique acima para enviar a confirmação para o nosso WhatsApp e salvar no seu histórico!</p>
+        </div>
+
+    </div>
+
+    <!-- Botão Flutuante do WhatsApp -->
+    <a href="#" id="btn-float-zap" class="float-whatsapp" target="_blank" style="display: none;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/>
+        </svg>
+    </a>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const tenantId = urlParams.get('id') || 1;
+        
+        let servicos = [];
+        let horarioSelecionado = null;
+        let servicoSelecionado = null;
+        let profissionalSelecionado = null;
+        let valorSinalCalculado = 0;
+        let telefoneBarbearia = "";
+
+        // Inicialização
+        window.onload = async () => {
+            document.getElementById('input-data').min = new Date().toISOString().split('T')[0];
+            await carregarDadosIniciais();
+        };
+
+        async function carregarDadosIniciais() {
+            try {
+                // Busca nome e zap da barbearia
+                const resNegocio = await fetch(`https://saas-agendamento-backend.onrender.com/negocios/${tenantId}`);
+                if (resNegocio.ok) {
+                    const negocio = await resNegocio.json();
+                    document.getElementById('nome-barbearia').innerText = negocio.nome_negocio;
+                    if(negocio.telefone_whatsapp) {
+                        telefoneBarbearia = negocio.telefone_whatsapp.replace(/\D/g, '');
+                        const btnFloat = document.getElementById('btn-float-zap');
+                        btnFloat.href = `https://wa.me/55${telefoneBarbearia}?text=Olá! Preciso de ajuda com um agendamento.`;
+                        btnFloat.style.display = 'flex';
+                    }
+                }
+
+                // Busca serviços
+                const resServicos = await fetch(`https://saas-agendamento-backend.onrender.com/negocios/${tenantId}/servicos/`);
+                const dados = await resServicos.json();
+                servicos = dados.servicos;
+                
+                const select = document.getElementById('select-servico');
+                servicos.forEach(s => {
+                    select.innerHTML += `<option value="${s.id}">${s.nome_servico} - R$ ${s.preco_base.toFixed(2)}</option>`;
+                });
+            } catch (e) {
+                document.getElementById('nome-barbearia').innerText = "Erro ao carregar";
+            }
+        }
+
+        function atualizarProfissionais() {
+            const servicoId = document.getElementById('select-servico').value;
+            const selectProf = document.getElementById('select-profissional');
+            
+            if (!servicoId) {
+                selectProf.innerHTML = '<option value="">Qualquer profissional disponível</option>';
+                return;
+            }
+
+            const servico = servicos.find(s => s.id == servicoId);
+            selectProf.innerHTML = '<option value="">Qualquer profissional disponível</option>';
+            
+            servico.profissionais_info.forEach(p => {
+                selectProf.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
+            });
+        }
+
+        // Navegação entre etapas
+        function irParaEtapa2() {
+            const servicoId = document.getElementById('select-servico').value;
+            if (!servicoId) { alert("Por favor, selecione um serviço."); return; }
+            mudarEtapa(1, 2);
+        }
+
+        function irParaEtapa3() {
+            const data = document.getElementById('input-data').value;
+            if (!data || !horarioSelecionado) { alert("Por favor, escolha uma data e um horário."); return; }
+            
+            const servicoId = document.getElementById('select-servico').value;
+            servicoSelecionado = servicos.find(s => s.id == servicoId);
+            
+            const profSelect = document.getElementById('select-profissional');
+            const nomeProf = profSelect.value ? profSelect.options[profSelect.selectedIndex].text : "Qualquer um disponível";
+            
+            valorSinalCalculado = servicoSelecionado.preco_base * (servicoSelecionado.max_deposito_pct / 100);
+            
+            const dataFormatada = data.split('-').reverse().join('/');
+            
+            document.getElementById('box-resumo').innerHTML = `
+                <strong>Serviço:</strong> ${servicoSelecionado.nome_servico}<br>
+                <strong>Profissional:</strong> ${nomeProf}<br>
+                <strong>Data:</strong> ${dataFormatada} às ${horarioSelecionado}<br>
+                <strong>Valor Total:</strong> R$ ${servicoSelecionado.preco_base.toFixed(2)}
+            `;
+            
+            document.getElementById('valor-sinal-texto').innerText = `R$ ${valorSinalCalculado.toFixed(2)} (${servicoSelecionado.max_deposito_pct}%)`;
+            
+            mudarEtapa(2, 3);
+        }
+
+        function mudarEtapa(atual, proxima) {
+            document.getElementById(`etapa-${atual}`).classList.remove('ativa');
+            document.getElementById(`etapa-${proxima}`).classList.add('ativa');
+        }
+
+        function voltarEtapa(para) {
+            document.querySelectorAll('.etapa').forEach(e => e.classList.remove('ativa'));
+            document.getElementById(`etapa-${para}`).classList.add('ativa');
+        }
+
+        // Busca de Horários
+        async function buscarHorarios() {
+            const data = document.getElementById('input-data').value;
+            const servicoId = document.getElementById('select-servico').value;
+            const profId = document.getElementById('select-profissional').value;
+            const grid = document.getElementById('grid-horarios');
+            
+            if (!data) return;
+
+            grid.innerHTML = '<p style="grid-column: span 3; text-align: center;">Buscando...</p>';
+            horarioSelecionado = null;
+
+            try {
+                let url = `https://saas-agendamento-backend.onrender.com/negocios/${tenantId}/horarios-disponiveis/?data=${data}&service_id=${servicoId}`;
+                if (profId) url += `&professional_id=${profId}`;
+
+                const res = await fetch(url);
+                const dados = await res.json();
+
+                grid.innerHTML = '';
+
+                if (dados.horarios_disponiveis.length === 0) {
+                    grid.innerHTML = '<p style="grid-column: span 3; text-align: center; color: #dc3545;">Nenhum horário livre neste dia.</p>';
+                    return;
+                }
+
+                dados.horarios_disponiveis.forEach(hora => {
+                    const btn = document.createElement('div');
+                    btn.className = 'btn-horario';
+                    btn.innerText = hora;
+                    btn.onclick = () => selecionarHorario(btn, hora);
+                    grid.appendChild(btn);
+                });
+            } catch (e) {
+                grid.innerHTML = '<p style="color: red;">Erro ao buscar horários.</p>';
+            }
+        }
+
+        function selecionarHorario(botaoClicado, hora) {
+            document.querySelectorAll('.btn-horario').forEach(b => b.classList.remove('selecionado'));
+            botaoClicado.classList.add('selecionado');
+            horarioSelecionado = hora;
+        }
+
+        // Geração do Pix
+        async function gerarPix() {
+            const nome = document.getElementById('input-nome').value;
+            const telefone = document.getElementById('input-telefone').value;
+            
+            if (!nome || !telefone) { alert("Por favor, preencha seu nome e WhatsApp."); return; }
+
+            const servicoId = document.getElementById('select-servico').value;
+            const profId = document.getElementById('select-profissional').value;
+            const data = document.getElementById('input-data').value;
+            
+            const pacote = {
+                service_id: parseInt(servicoId),
+                professional_id: profId ? parseInt(profId) : null,
+                client_name: nome,
+                telefone_cliente: telefone,
+                data_hora: `${data}T${horarioSelecionado}:00`,
+                deposit_percentage: servicoSelecionado.max_deposito_pct
+            };
+
+            try {
+                const res = await fetch('https://saas-agendamento-backend.onrender.com/gerar-pix-reserva/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pacote)
+                });
+
+                if (res.ok) {
+                    const dados = await res.json();
+                    document.getElementById('pix-valor').innerText = `R$ ${valorSinalCalculado.toFixed(2)}`;
+                    document.getElementById('codigo-pix-texto').innerText = dados.codigo_pix;
+                    mudarEtapa(3, 4);
+                } else {
+                    const erro = await res.json();
+                    alert(erro.detail);
+                }
+            } catch (e) {
+                alert("Erro ao conectar com o servidor.");
+            }
+        }
+
+        function copiarPix() {
+            const codigo = document.getElementById('codigo-pix-texto').innerText;
+            navigator.clipboard.writeText(codigo);
+            alert("Código Pix copiado!");
+        }
+
+        // Sucesso e Comprovante
+        function simularPagamento() {
+            const nome = document.getElementById('input-nome').value;
+            const data = document.getElementById('input-data').value.split('-').reverse().join('/');
+            const profSelect = document.getElementById('select-profissional');
+            const nomeProf = profSelect.value ? profSelect.options[profSelect.selectedIndex].text : "Qualquer um";
+            
+            // Monta o comprovante visual
+            document.getElementById('comprovante-box').innerHTML = `
+                <p>👤 <strong>Nome:</strong> ${nome}</p>
+                <p>✂️ <strong>Serviço:</strong> ${servicoSelecionado.nome_servico}</p>
+                <p>🧑 <strong>Profissional:</strong> ${nomeProf}</p>
+                <p>📅 <strong>Data:</strong> ${data}</p>
+                <p>🕒 <strong>Horário:</strong> ${horarioSelecionado}</p>
+                <p style="border: none; color: #28a745;">💰 <strong>Sinal Pago:</strong> R$ ${valorSinalCalculado.toFixed(2)}</p>
+            `;
+            
+            mudarEtapa(4, 5);
+        }
+
+        function enviarComprovanteZap() {
+            if(!telefoneBarbearia) {
+                alert("O dono da barbearia ainda não configurou o número de WhatsApp no painel.");
+                return;
+            }
+            
+            const nome = document.getElementById('input-nome').value;
+            const data = document.getElementById('input-data').value.split('-').reverse().join('/');
+            const profSelect = document.getElementById('select-profissional');
+            const nomeProf = profSelect.value ? profSelect.options[profSelect.selectedIndex].text : "Qualquer um";
+            
+            const mensagem = `Olá! Acabei de agendar pelo sistema. Segue meu comprovante:%0A%0A*Nome:* ${nome}%0A*Serviço:* ${servicoSelecionado.nome_servico}%0A*Profissional:* ${nomeProf}%0A*Data:* ${data} às ${horarioSelecionado}%0A*Sinal Pago:* R$ ${valorSinalCalculado.toFixed(2)}%0A%0AAté lá!`;
+            
+            window.open(`https://wa.me/55${telefoneBarbearia}?text=${mensagem}`, '_blank');
+        }
+    </script>
+</body>
+</html>
