@@ -317,7 +317,7 @@ def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(nova_reserva)
     
-    # 2. CORREÇÃO DO TELEFONE
+    # 2. CORREÇÃO DO TELEFONE E INCLUSÃO DE CPF GENÉRICO
     telefone_limpo = "".join(filter(str.isdigit, booking.telefone_cliente)) if booking.telefone_cliente else "anonimo"
     email_falso = f"cliente_{telefone_limpo}@teste.com"
 
@@ -328,7 +328,11 @@ def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
         "external_reference": str(nova_reserva.id),
         "payer": {
             "email": email_falso,
-            "first_name": booking.client_name
+            "first_name": booking.client_name,
+            "identification": {
+                "type": "CPF",
+                "number": "19119119100"  # CPF genérico obrigatório para o MP liberar o Pix
+            }
         }
     }
 
