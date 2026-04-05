@@ -7,7 +7,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 import mercadopago
 
 # --- CONFIGURAÇÃO DO MERCADO PAGO ---
-mp_access_token = "TEST-3737362852835395-093010-3dea4954c7e2ed438b80cfe60fff40a4-820609374"
+mp_access_token = "APP_USR-3737362852835395-093010-3d28d03d695b0bc3ea1203d69edff8a9-820609374"
 sdk = mercadopago.SDK(mp_access_token)
 
 # 1. CONFIGURAÇÃO DO BANCO DE DADOS
