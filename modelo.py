@@ -265,7 +265,9 @@ def buscar_horarios(tenant_id: int, data: str, service_id: int, professional_id:
     data_fim = datetime.strptime(f"{data} 23:59", "%Y-%m-%d %H:%M")
     horario_abertura = datetime.strptime(f"{data} {negocio.hora_abertura}", "%Y-%m-%d %H:%M")
     horario_fechamento = datetime.strptime(f"{data} {negocio.hora_fechamento}", "%Y-%m-%d %H:%M")
-    agora = datetime.now()
+    
+    # Arrumando o relógio de Londres para o Brasil (UTC-3)
+    agora = datetime.utcnow() - timedelta(hours=3)
     
     horarios_livres_set = set()
     
@@ -288,7 +290,7 @@ def buscar_horarios(tenant_id: int, data: str, service_id: int, professional_id:
                 
     return {"data": data, "horarios_disponiveis": sorted(list(horarios_livres_set))}
 
-# 🚀 ROTA ATUALIZADA: GERAR PIX REAL NO MERCADO PAGO (COM TRATAMENTO DE ERRO SEGURO) 🚀
+# 🚀 ROTA ATUALIZADA: GERAR PIX REAL NO MERCADO PAGO (COM TRATAMENTO DE ERRO SEGURO E RETORNO DE ID) 🚀
 @app.post("/gerar-pix-reserva/")
 def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
     # 1. CORREÇÃO DO FUSO HORÁRIO
@@ -364,7 +366,16 @@ def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
     nova_reserva.codigo_pix = pix_code_real
     db.commit()
     
-    return {"mensagem": "Reserva iniciada!", "codigo_pix": pix_code_real}
+    # AQUI ESTÁ A NOVIDADE: Retornando o reserva_id para o frontend ligar o radar!
+    return {"mensagem": "Reserva iniciada!", "codigo_pix": pix_code_real, "reserva_id": nova_reserva.id}
+
+# 🚀 NOVA ROTA: O RADAR DE PAGAMENTO 🚀
+@app.get("/reservas/{reserva_id}/status")
+def checar_status_reserva(reserva_id: int, db: Session = Depends(get_db)):
+    reserva = db.query(BookingDB).filter(BookingDB.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva não encontrada")
+    return {"status_pagamento": reserva.status_pagamento}
 
 # 🚀 A ROTA DO WEBHOOK (A PORTA DE ENTRADA DO MERCADO PAGO) 🚀
 @app.post("/webhook/mercadopago/")
