@@ -114,7 +114,6 @@
                 <button class="btn-copiar" onclick="copiarPix()">📋 Copiar Código Pix</button>
             </div>
 
-            <button class="btn-principal" onclick="simularPagamento()" style="background-color: #28a745;">Simular Pagamento (Teste) ✅</button>
         </div>
 
         <!-- ETAPA 5: Sucesso e Comprovante -->
@@ -291,7 +290,8 @@
             horarioSelecionado = hora;
         }
 
-        // Geração do Pix
+        let radarPagamento = null; // Variável para guardar o radar
+
         async function gerarPix() {
             const nome = document.getElementById('input-nome').value;
             const telefone = document.getElementById('input-telefone').value;
@@ -323,6 +323,20 @@
                     document.getElementById('pix-valor').innerText = `R$ ${valorSinalCalculado.toFixed(2)}`;
                     document.getElementById('codigo-pix-texto').innerText = dados.codigo_pix;
                     mudarEtapa(3, 4);
+                    
+                    // LIGA O RADAR: Fica checando a cada 3 segundos se o status mudou para PAGO
+                    const reservaId = dados.reserva_id;
+                    radarPagamento = setInterval(async () => {
+                        const resStatus = await fetch(`https://saas-agendamento-backend.onrender.com/reservas/${reservaId}/status`);
+                        if (resStatus.ok) {
+                            const dadosStatus = await resStatus.json();
+                            if (dadosStatus.status_pagamento === "PAGO") {
+                                clearInterval(radarPagamento); // Desliga o radar
+                                mostrarTelaSucesso(); // Pula pra tela verde!
+                            }
+                        }
+                    }, 3000); // 3000 milissegundos = 3 segundos
+
                 } else {
                     const erro = await res.json();
                     alert(erro.detail);
@@ -332,20 +346,13 @@
             }
         }
 
-        function copiarPix() {
-            const codigo = document.getElementById('codigo-pix-texto').innerText;
-            navigator.clipboard.writeText(codigo);
-            alert("Código Pix copiado!");
-        }
-
-        // Sucesso e Comprovante
-        function simularPagamento() {
+        // Nova função que substitui o antigo "simularPagamento"
+        function mostrarTelaSucesso() {
             const nome = document.getElementById('input-nome').value;
             const data = document.getElementById('input-data').value.split('-').reverse().join('/');
             const profSelect = document.getElementById('select-profissional');
             const nomeProf = profSelect.value ? profSelect.options[profSelect.selectedIndex].text : "Qualquer um";
             
-            // Monta o comprovante visual
             document.getElementById('comprovante-box').innerHTML = `
                 <p>👤 <strong>Nome:</strong> ${nome}</p>
                 <p>✂️ <strong>Serviço:</strong> ${servicoSelecionado.nome_servico}</p>
