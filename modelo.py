@@ -324,16 +324,20 @@ def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
     email_falso = f"cliente_{telefone_limpo}@teste.com"
 
     payment_data = {
-        "transaction_amount": float(deposit_amount),
+        "transaction_amount": round(deposit_amount, 2), # Arredondando para evitar o erro de centavos
         "description": f"Sinal Reserva - {servico.nome_servico}",
         "payment_method_id": "pix",
         "external_reference": str(nova_reserva.id),
+        
+        # 🚀 A CARTADA MESTRE: Forçando o Mercado Pago a usar essa URL para avisar do pagamento!
+        "notification_url": "https://saas-agendamento-backend.onrender.com/webhook/mercadopago/",
+        
         "payer": {
             "email": email_falso,
             "first_name": booking.client_name,
             "identification": {
                 "type": "CPF",
-                "number": "19119119100"  # CPF genérico obrigatório para o MP liberar o Pix
+                "number": "19119119100"
             }
         }
     }
@@ -343,18 +347,18 @@ def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
         payment = payment_response.get("response", {})
         
         if "point_of_interaction" not in payment:
-            # DEDO-DURO: Pega o erro exato que o Mercado Pago devolveu
             erro_mp = payment.get("message", "Erro desconhecido")
             detalhes = payment.get("cause", [])
             if detalhes and len(detalhes) > 0:
                 erro_mp += f" - Detalhe: {detalhes[0].get('description', '')}"
-                
             raise Exception(f"Motivo MP: {erro_mp}")
             
         pix_code_real = payment["point_of_interaction"]["transaction_data"]["qr_code"]
         
+        # 🖼️ PEGANDO A IMAGEM DO QR CODE AQUI:
+        qr_code_img = payment["point_of_interaction"]["transaction_data"]["qr_code_base64"]
+        
     except Exception as e:
-        # Deleta a reserva fantasma com segurança (apenas uma vez)
         try:
             db.delete(nova_reserva)
             db.commit()
@@ -362,12 +366,16 @@ def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
             pass
         raise HTTPException(status_code=400, detail=str(e))
     
-    # ATUALIZA A RESERVA COM O CÓDIGO PIX REAL
     nova_reserva.codigo_pix = pix_code_real
     db.commit()
     
-    # AQUI ESTÁ A NOVIDADE: Retornando o reserva_id para o frontend ligar o radar!
-    return {"mensagem": "Reserva iniciada!", "codigo_pix": pix_code_real, "reserva_id": nova_reserva.id}
+    # 🚀 ENVIANDO A IMAGEM PARA O SITE AQUI:
+    return {
+        "mensagem": "Reserva iniciada!", 
+        "codigo_pix": pix_code_real, 
+        "qr_code_base64": qr_code_img, 
+        "reserva_id": nova_reserva.id
+    }
 
 # 🚀 NOVA ROTA: O RADAR DE PAGAMENTO 🚀
 @app.get("/reservas/{reserva_id}/status")
