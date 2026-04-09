@@ -110,6 +110,12 @@
             
             <div class="pix-box">
                 <strong>Valor do Sinal: <span id="pix-valor"></span></strong>
+                
+                <!-- Imagem do QR Code adicionada aqui -->
+                <div style="margin: 15px 0;">
+                    <img id="qr-code-img" src="" alt="QR Code Pix" style="max-width: 200px; display: none; margin: 0 auto;">
+                </div>
+
                 <div class="codigo-pix" id="codigo-pix-texto">Carregando código...</div>
                 <button class="btn-copiar" onclick="copiarPix()">📋 Copiar Código Pix</button>
             </div>
@@ -322,20 +328,29 @@
                     const dados = await res.json();
                     document.getElementById('pix-valor').innerText = `R$ ${valorSinalCalculado.toFixed(2)}`;
                     document.getElementById('codigo-pix-texto').innerText = dados.codigo_pix;
+                    
+                    // Mostra a imagem do QR Code na tela se ela vier do backend
+                    if (dados.qr_code_base64) {
+                        document.getElementById('qr-code-img').src = `data:image/jpeg;base64,${dados.qr_code_base64}`;
+                        document.getElementById('qr-code-img').style.display = 'block';
+                    }
+                    
                     mudarEtapa(3, 4);
                     
                     // LIGA O RADAR: Fica checando a cada 3 segundos se o status mudou para PAGO
                     const reservaId = dados.reserva_id;
-                    radarPagamento = setInterval(async () => {
-                        const resStatus = await fetch(`https://saas-agendamento-backend.onrender.com/reservas/${reservaId}/status`);
-                        if (resStatus.ok) {
-                            const dadosStatus = await resStatus.json();
-                            if (dadosStatus.status_pagamento === "PAGO") {
-                                clearInterval(radarPagamento); // Desliga o radar
-                                mostrarTelaSucesso(); // Pula pra tela verde!
+                    if(reservaId) {
+                        radarPagamento = setInterval(async () => {
+                            const resStatus = await fetch(`https://saas-agendamento-backend.onrender.com/reservas/${reservaId}/status`);
+                            if (resStatus.ok) {
+                                const dadosStatus = await resStatus.json();
+                                if (dadosStatus.status_pagamento === "PAGO") {
+                                    clearInterval(radarPagamento); // Desliga o radar
+                                    mostrarTelaSucesso(); // Pula pra tela verde!
+                                }
                             }
-                        }
-                    }, 3000); // 3000 milissegundos = 3 segundos
+                        }, 3000); // 3000 milissegundos = 3 segundos
+                    }
 
                 } else {
                     const erro = await res.json();
@@ -346,7 +361,42 @@
             }
         }
 
-        // Nova função que substitui o antigo "simularPagamento"
+        // Função para copiar o código Pix de forma segura em qualquer celular
+        function copiarPix() {
+            const codigo = document.getElementById('codigo-pix-texto').innerText;
+            if (!codigo || codigo === "Carregando código...") return;
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(codigo).then(() => {
+                    alert("Código Pix copiado com sucesso!");
+                }).catch(err => {
+                    fallbackCopyTextToClipboard(codigo);
+                });
+            } else {
+                fallbackCopyTextToClipboard(codigo);
+            }
+        }
+
+        // Truque para celulares que bloqueiam a cópia normal
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            // Evita que a tela role para baixo
+            textArea.style.position = "fixed";
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert("Código Pix copiado com sucesso!");
+            } catch (err) {
+                alert("Não foi possível copiar o código. Por favor, selecione o texto e copie manualmente.");
+            }
+            document.body.removeChild(textArea);
+        }
+
         function mostrarTelaSucesso() {
             const nome = document.getElementById('input-nome').value;
             const data = document.getElementById('input-data').value.split('-').reverse().join('/');
