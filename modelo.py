@@ -305,7 +305,7 @@ def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
     prof_escolhido = booking.professional_id if booking.professional_id else profissionais[0].id
 
     final_price = booking.negotiated_price if booking.negotiated_price else servico.preco_base
-    deposit_amount = final_price * (servico.max_deposito_pct / 100)
+    deposit_amount = round(final_price * (servico.max_deposito_pct / 100), 2)
     
     # SALVA A RESERVA PRIMEIRO
     nova_reserva = BookingDB(
