@@ -385,36 +385,53 @@ def checar_status_reserva(reserva_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Reserva não encontrada")
     return {"status_pagamento": reserva.status_pagamento}
 
-# 🚀 A ROTA DO WEBHOOK (A PORTA DE ENTRADA DO MERCADO PAGO) 🚀
+# 🚀 A ROTA DO WEBHOOK BLINDADA (A PORTA DE ENTRADA DO MERCADO PAGO) 🚀
 @app.post("/webhook/mercadopago/")
 async def webhook_mercadopago(request: Request, db: Session = Depends(get_db)):
     try:
+        # Tenta pegar os dados que o Mercado Pago enviou
         dados = await request.json()
+        print(f"📩 Webhook recebido: {dados}") # Vai imprimir no log do Render para a gente ver!
         
-        # Verifica se é uma notificação de pagamento
-        if dados.get("type") == "payment" or dados.get("topic") == "payment":
+        payment_id = None
+        
+        # O Mercado Pago tem várias formas de mandar o aviso, vamos tentar todas:
+        if dados.get("type") == "payment" or dados.get("topic") == "payment" or str(dados.get("action", "")).startswith("payment"):
             payment_id = dados.get("data", {}).get("id")
-            
-            if payment_id:
-                # Pergunta pro Mercado Pago: "Esse pagamento foi aprovado mesmo?"
-                payment_info = sdk.payment().get(payment_id)
-                payment = payment_info["response"]
+            if not payment_id:
+                payment_id = dados.get("id")
                 
-                if payment.get("status") == "approved":
-                    # Pega aquele ID da reserva que mandamos no "external_reference"
-                    reserva_id = payment.get("external_reference")
-                    
-                    if reserva_id:
-                        reserva = db.query(BookingDB).filter(BookingDB.id == int(reserva_id)).first()
-                        if reserva and reserva.status_pagamento != "PAGO":
-                            reserva.status_pagamento = "PAGO" # MUDA O STATUS!
-                            db.commit()
-                            print(f"✅ Reserva {reserva_id} PAGA com sucesso!")
+        # Se não veio no corpo (JSON), tenta pegar na URL
+        if not payment_id:
+            params = request.query_params
+            if params.get("topic") == "payment" or params.get("type") == "payment":
+                payment_id = params.get("data.id") or params.get("id")
+                
+        if payment_id:
+            print(f"🔍 Verificando pagamento ID: {payment_id}")
+            # Pergunta pro Mercado Pago: "Esse pagamento foi aprovado mesmo?"
+            payment_info = sdk.payment().get(payment_id)
+            payment = payment_info.get("response", {})
+            
+            if payment.get("status") == "approved":
+                # Pega aquele ID da reserva que mandamos no "external_reference"
+                reserva_id = payment.get("external_reference")
+                
+                if reserva_id:
+                    reserva = db.query(BookingDB).filter(BookingDB.id == int(reserva_id)).first()
+                    if reserva and reserva.status_pagamento != "PAGO":
+                        reserva.status_pagamento = "PAGO" # MUDA O STATUS!
+                        db.commit()
+                        print(f"✅ Reserva {reserva_id} PAGA com sucesso!")
+                    else:
+                        print(f"⚠️ Reserva {reserva_id} já estava paga ou não existe.")
+            else:
+                print(f"⏳ Pagamento {payment_id} ainda não está aprovado. Status: {payment.get('status')}")
                             
     except Exception as e:
-        print(f"Erro no webhook: {e}")
+        print(f"❌ Erro no webhook: {e}")
         
-    # O Mercado Pago exige que a gente responda rápido com "OK", senão ele fica travado
+    # O Mercado Pago exige que a gente responda rápido com "OK"
     return {"status": "ok"}
 
 @app.post("/negocios/{tenant_id}/agendamento-manual/")
