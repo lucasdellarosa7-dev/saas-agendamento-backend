@@ -385,23 +385,20 @@ def checar_status_reserva(reserva_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Reserva não encontrada")
     return {"status_pagamento": reserva.status_pagamento}
 
-# 🚀 A ROTA DO WEBHOOK BLINDADA (A PORTA DE ENTRADA DO MERCADO PAGO) 🚀
-@app.post("/webhook/mercadopago/")
+# 🚀 A ROTA DO WEBHOOK BLINDADA E PREPARADA PARA TESTES 🚀
+@app.post("/webhook/mercadopago")  # <-- ATENÇÃO: Tirei a barra do final aqui!
 async def webhook_mercadopago(request: Request, db: Session = Depends(get_db)):
     try:
-        # Tenta pegar os dados que o Mercado Pago enviou
         dados = await request.json()
-        print(f"📩 Webhook recebido: {dados}") # Vai imprimir no log do Render para a gente ver!
+        print(f"📩 Webhook recebido: {dados}")
         
         payment_id = None
         
-        # O Mercado Pago tem várias formas de mandar o aviso, vamos tentar todas:
         if dados.get("type") == "payment" or dados.get("topic") == "payment" or str(dados.get("action", "")).startswith("payment"):
             payment_id = dados.get("data", {}).get("id")
             if not payment_id:
                 payment_id = dados.get("id")
                 
-        # Se não veio no corpo (JSON), tenta pegar na URL
         if not payment_id:
             params = request.query_params
             if params.get("topic") == "payment" or params.get("type") == "payment":
@@ -409,18 +406,22 @@ async def webhook_mercadopago(request: Request, db: Session = Depends(get_db)):
                 
         if payment_id:
             print(f"🔍 Verificando pagamento ID: {payment_id}")
-            # Pergunta pro Mercado Pago: "Esse pagamento foi aprovado mesmo?"
+            
+            # 🛑 SEGREDO PARA O TESTE DO MERCADO PAGO FUNCIONAR 🛑
+            if str(payment_id) == "123456":
+                print("✅ Teste do painel do Mercado Pago recebido com sucesso!")
+                return {"status": "ok"}
+                
+            # Se for um pagamento real, continua o processo normal
             payment_info = sdk.payment().get(payment_id)
             payment = payment_info.get("response", {})
             
             if payment.get("status") == "approved":
-                # Pega aquele ID da reserva que mandamos no "external_reference"
                 reserva_id = payment.get("external_reference")
-                
                 if reserva_id:
                     reserva = db.query(BookingDB).filter(BookingDB.id == int(reserva_id)).first()
                     if reserva and reserva.status_pagamento != "PAGO":
-                        reserva.status_pagamento = "PAGO" # MUDA O STATUS!
+                        reserva.status_pagamento = "PAGO"
                         db.commit()
                         print(f"✅ Reserva {reserva_id} PAGA com sucesso!")
                     else:
@@ -431,7 +432,6 @@ async def webhook_mercadopago(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ Erro no webhook: {e}")
         
-    # O Mercado Pago exige que a gente responda rápido com "OK"
     return {"status": "ok"}
 
 @app.post("/negocios/{tenant_id}/agendamento-manual/")
