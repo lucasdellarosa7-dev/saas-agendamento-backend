@@ -330,7 +330,7 @@ def criar_reserva(booking: BookingRequest, db: Session = Depends(get_db)):
         "external_reference": str(nova_reserva.id),
         
         # 🚀 A CARTADA MESTRE: Forçando o Mercado Pago a usar essa URL para avisar do pagamento!
-        "notification_url": "https://saas-agendamento-backend.onrender.com/webhook/mercadopago/",
+        "notification_url": "https://saas-agendamento-backend.onrender.com/webhook/mercadopago",
         
         "payer": {
             "email": email_falso,
